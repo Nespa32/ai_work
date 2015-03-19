@@ -10,21 +10,22 @@
 #include <chrono>
 #include <ctime>
 
+/// global vars
 int init[9] = {
 // 24 steps
-	3, 4, 2,
-	5, 1, 7,
-	6, 0, 8,
+//	3, 4, 2,
+//	5, 1, 7,
+//	6, 0, 8,
 
 // test, 3 steps
 //	1, 2, 3,
 //	8, 4, 5,
 //	7, 0, 6,
 
-// test, 5 steps
-//    0, 2, 3,
-//    1, 8, 5,
-//    7, 4, 6,
+// test, 6 steps
+    0, 2, 3,
+    1, 8, 5,
+    7, 4, 6,
 };
 
 int goal[9] = {
@@ -40,6 +41,21 @@ struct Node;
 
 std::list<Node*> nodeQueue;
 Node* root; // it's ze tree
+
+enum SearchType
+{
+    SEARCH_TYPE_BFS,
+    SEARCH_TYPE_DFS,
+    SEARCH_TYPE_IDFS,
+    SEARCH_TYPE_GREEDY,
+    SEARCH_TYPE_A_STAR,
+};
+
+SearchType searchType;
+
+// specific to IDFS search
+int IDFS_depth = 0;
+///
 
 struct Node
 {
@@ -231,7 +247,22 @@ void AddToQueueIDFS(std::list<Node*> descList)
 {
 	for (Node* node : descList)
     {
-		nodeQueue.push_front(node);
+        if (node->depth <= IDFS_depth)
+            nodeQueue.push_front(node);
+    }
+    
+    // IDFS cycle
+    // increase depth, clear all previous data
+    // @todo: delete previous nodes
+    if (nodeQueue.empty())
+    {
+        ++IDFS_depth;
+        FillFirstNode(); // mister bones' wild ride never ends
+        
+        assert(nodeQueue.size() == 1);
+        
+        // debugging code
+        printf("IDFS: new depth %d\n", IDFS_depth);
     }
 }
 
@@ -249,11 +280,6 @@ void AddToQueueGreedy(std::list<Node*> descList)
     
     // re-sort the whole list
     nodeQueue.sort(CompareNodes);
-
-    //for (Node* node : nodeQueue)
-    //    printf("%d ", HeuristicMahatthanDist(node));
-    
-    //printf("\n");
 }
 
 bool CompareNodesAStar(Node* left, Node* right)
@@ -283,25 +309,24 @@ struct NodeState
 
 namespace std
 {
-  template <>
-  struct hash<NodeState>
-  {
-    std::size_t operator()(const NodeState& nodeState) const
+    template <>
+    struct hash<NodeState>
     {
-      using std::size_t;
-      using std::hash;
-      using std::string;
+        std::size_t operator()(const NodeState& nodeState) const
+        {
+            using std::size_t;
+            using std::hash;
+            using std::string;
 
-      hash<int> hasher;
+            hash<int> hasher;
       
-      std::size_t h = 0;
-      for (int i = 0; i < 9; ++i)
-          h = h * 31 + hasher(nodeState.state[i]);
+            std::size_t h = 0;
+            for (int i = 0; i < 9; ++i)
+                h = h * 31 + hasher(nodeState.state[i]);
       
-      return h;
-    }
-  };
-
+            return h;
+        }
+    };
 }
 
 void AddToQueueAStar(std::list<Node*> descList)
@@ -341,7 +366,7 @@ void Finish(Node* node)
 
 void search(int type)
 {
-    	FillFirstNode();
+    FillFirstNode();
 
 	assert(!nodeQueue.empty());
 
@@ -364,7 +389,7 @@ void search(int type)
         // AddToQueueGreedy
         // AddToQueueAStar
         
-		AddToQueueAStar(descList);
+		AddToQueueIDFS(descList);
 	}
 
 	printf("No bueno\n");
