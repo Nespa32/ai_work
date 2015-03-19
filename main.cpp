@@ -57,6 +57,8 @@ int goal[MATRIX_SIZE] = {
 	7, 6, 5,
 };
 
+#define MATRIX_STRUCT_SIZE sizeof(init)
+
 // just for measuring
 int node_counter = 0;
 
@@ -74,6 +76,20 @@ enum SearchType
     SEARCH_TYPE_A_STAR,
 };
 
+void FillFirstNode();
+void AddToQueueBFS(std::list<Node*> descList);
+void AddToQueueDFS(std::list<Node*> descList);
+void AddToQueueIDFS(std::list<Node*> descList);
+void AddToQueueGreedy(std::list<Node*> descList);
+void AddToQueueAStar(std::list<Node*> descList);
+
+void Finish(Node* node);
+
+void GeneralSearchAlgorithm(SearchType searchType);
+
+// arg parsing helper
+bool stringEndsWith(std::string s, std::string end);
+
 struct Node
 {
 	Node()
@@ -84,7 +100,7 @@ struct Node
         if (node_counter % 1000 == 0)
             DEBUG_LOG("Node::Node - allocated %d nodes", node_counter);
         
-		memset(state, 0, sizeof(state));
+		memset(state, 0, MATRIX_STRUCT_SIZE);
 		parent = nullptr;
 		move = 0;
 		depth = 0;
@@ -101,7 +117,7 @@ struct Node
 
 	bool IsGoal()
 	{
-		return memcmp(state, goal, sizeof(goal)) == 0;
+		return memcmp(state, goal, MATRIX_STRUCT_SIZE) == 0;
 	}
 
     std::list<Node*> MakeDescendants()
@@ -130,7 +146,7 @@ struct Node
                 Node* node = new Node();
                 node->parent = this;
                 node->depth = depth + 1;
-                memcpy(node->state, state, sizeof(init));
+                memcpy(node->state, state, MATRIX_STRUCT_SIZE);
                 
                 node->DoMove(idx, newIdx); // must be after state initialization
                 
@@ -172,19 +188,8 @@ struct Node
         return result;
     }
     
-    // 1, 2
-    // 1 + 6 = 7/
-    int CoordsToIdx(int i, int j) const { return i + j * 3; }
+    int CoordsToIdx(int i, int j) const { return i + j * MATRIX_SIDE_SIZE; }
     
-    // 0 -> 0, 0
-    // 1 -> 1, 0
-    // 2 -> 2, 0
-    // 3 -> 0, 1
-    // 4 -> 1, 1
-    // 5 -> 2, 1
-    // 6 -> 0, 2
-    // 7 -> 1, 2
-    // 8 -> 2, 2
     void IdxToCoords(int& i, int& j, int idx) const
     {
         i = idx % MATRIX_SIDE_SIZE;
@@ -215,11 +220,63 @@ private:
 	}
 };
 
+int main(int argc, char** argv)
+{
+    SearchType searchType = SEARCH_TYPE_BFS;
+    
+    for (int i = 0; i < argc; ++i)
+    {
+        if (strcmp(argv[i], "--start_config") == 0)
+        {
+            // eat up the next 9 digits
+        }
+        else if (strcmp(argv[i], "--end_config") == 0)
+        {
+            // eat up the next 9 digits
+        }
+        else if (strcmp(argv[i], "--search_type") == 0)
+        {
+            if (stringEndsWith(argv[i], "bfs"))
+                ;
+            else if (stringEndsWith(argv[i], "bfs"))
+                ;
+            else if (stringEndsWith(argv[i], "dfs"))
+                ;
+            else if (stringEndsWith(argv[i], "idfs"))
+                ;
+            else if (stringEndsWith(argv[i], "greedy"))
+                ;
+            else if (stringEndsWith(argv[i], "astar"))
+                ;
+            else
+            {
+                printf("Bad search type (input string: %s)", argv[i]);
+                return 1;
+            }
+            
+        }
+    }
+
+    std::chrono::time_point<std::chrono::system_clock> start, end;
+    start = std::chrono::system_clock::now();
+    
+    GeneralSearchAlgorithm(searchType);
+    
+    end = std::chrono::system_clock::now();
+ 
+    std::chrono::duration<float> duration = end - start;
+ 
+    printf("Nodes allocated: %d\n", node_counter);
+    printf("Search duration: %f second(s)\n", duration.count());
+    
+	return 0;
+}
+
 void FillFirstNode()
 {
 	Node* node = new Node();
 	// init states
-	memcpy(node->state, init, sizeof(init));
+	memcpy(node->state, init, MATRIX_STRUCT_SIZE);
 
 	root = node;
 
@@ -273,45 +330,38 @@ void AddToQueueIDFS(std::list<Node*> descList)
     }
 }
 
-bool CompareNodes(Node* left, Node* right)
-{
-    return left->GetManhattanDist() <= right->GetManhattanDist();
-}
-
-// @todo: instead of a list, a std::map<int, Node*> would be more appropriate and would automatically sort
 void AddToQueueGreedy(std::list<Node*> descList)
 {
-    // blind adding
 	for (Node* node : descList)
-		nodeQueue.push_front(node);
-    
-    // re-sort the whole list
-    nodeQueue.sort(CompareNodes);
-}
+    {
+        int cost = node->GetManhattanDist();
+        
+        // manually *sort* the list
+        // search through the list up to the point where nodes have a higher cost, and insert our node right before
+        // an std::map<int, Node*> (a balanced tree) would automatically sort and would have a log(n) insert op, but we need to use the queue for other searches
+        auto itr = nodeQueue.begin();
+        for (; itr != nodeQueue.end(); ++itr)
+        {
+            if (cost <= (*itr)->GetManhattanDist())
+                break;
+        }
 
-bool CompareNodesAStar(Node* left, Node* right)
-{
-    if (left->cost != right->cost)
-        return left->cost < right->cost;
-    
-    assert(left->node_counter_n != right->node_counter_n);
-    return left->node_counter_n < right->node_counter_n;
+		nodeQueue.insert(itr, node);
+    }
 }
-
 struct NodeState
 {
-    NodeState(int s[9])
+    NodeState(int s[MATRIX_SIZE])
     {
-        memcpy(state, s, sizeof(state));
+        memcpy(state, s, MATRIX_STRUCT_SIZE);
     }
     
-    int state[9];
+    int state[MATRIX_SIZE];
     
-    bool operator== (NodeState const& node) const { return memcmp(state, node.state, sizeof(state)) == 0; }
+    bool operator== (NodeState const& node) const { return memcmp(state, node.state, MATRIX_STRUCT_SIZE) == 0; }
    
-    bool operator!= (NodeState const& node) const { return memcmp(state, node.state, sizeof(state)) != 0; }
+    bool operator!= (NodeState const& node) const { return memcmp(state, node.state, MATRIX_STRUCT_SIZE) != 0; }
     bool operator< (NodeState const& node) const { return false; }
-
 };
 
 // needed to be able to use std::unordered_set<NodeState> (a hash map)
@@ -329,7 +379,7 @@ namespace std
             hash<int> hasher;
       
             std::size_t h = 0;
-            for (int i = 0; i < 9; ++i)
+            for (int i = 0; i < MATRIX_SIZE; ++i)
                 h = h * 31 + hasher(nodeState.state[i]);
       
             return h;
@@ -340,19 +390,29 @@ namespace std
 void AddToQueueAStar(std::list<Node*> descList)
 {
     static std::unordered_set<NodeState> visited;
-        // blind adding
+    
 	for (Node* node : descList)
     {
         NodeState state = node->state;
-        if (visited.find(state) == visited.end())
+        if (visited.find(state) != visited.end())
+            continue;
+        
+        visited.insert(state);
+        int cost = node->depth + node->GetManhattanDist();
+        
+        // manually *sort* the list
+        // search through the list up to the point where nodes have a higher cost, and insert our node right before
+        // an std::map<int, Node*> (a balanced tree) would automatically sort and would have a log(n) insert op, but we need to use the queue for other searches
+        auto itr = nodeQueue.begin();
+        for (; itr != nodeQueue.end(); ++itr)
         {
-            visited.insert(state);
-            nodeQueue.push_front(node);
+            Node* n = *itr;
+            if (cost <= n->depth + n->GetManhattanDist())
+                break;
         }
+
+		nodeQueue.insert(itr, node);
     }
-    
-    // re-sort the whole list
-    nodeQueue.sort(CompareNodesAStar);
 }
 
 void Finish(Node* node)
@@ -409,7 +469,7 @@ void GeneralSearchAlgorithm(SearchType searchType)
         // AddToQueueGreedy
         // AddToQueueAStar
         
-		AddToQueueIDFS(descList);
+		AddToQueueAStar(descList);
 	}
 
 	printf("No bueno\n");
@@ -448,54 +508,3 @@ bool stringEndsWith(std::string s, std::string end) {
     return s.compare(s.length() - end.length(), end.length(), end) == 0;
 }
 
-int main(int argc, char** argv)
-{
-    SearchType searchType = SEARCH_TYPE_BFS;
-    
-    for (int i = 0; i < argc; ++i)
-    {
-        if (strcmp(argv[i], "--start_config") == 0)
-        {
-            // eat up the next 9 digits
-        }
-        else if (strcmp(argv[i], "--end_config") == 0)
-        {
-            // eat up the next 9 digits
-        }
-        else if (strcmp(argv[i], "--search_type") == 0)
-        {
-            if (stringEndsWith(argv[i], "bfs"))
-                ;
-            else if (stringEndsWith(argv[i], "bfs"))
-                ;
-            else if (stringEndsWith(argv[i], "dfs"))
-                ;
-            else if (stringEndsWith(argv[i], "idfs"))
-                ;
-            else if (stringEndsWith(argv[i], "greedy"))
-                ;
-            else if (stringEndsWith(argv[i], "astar"))
-                ;
-            else
-            {
-                printf("Bad search type (input string: %s)", argv[i]);
-                return 1;
-            }
-            
-        }
-    }
-
-    std::chrono::time_point<std::chrono::system_clock> start, end;
-    start = std::chrono::system_clock::now();
-    
-    GeneralSearchAlgorithm(searchType);
-    
-    end = std::chrono::system_clock::now();
- 
-    std::chrono::duration<float> duration = end - start;
- 
-    printf("Nodes allocated: %d\n", node_counter);
-    printf("Search duration: %f second(s)\n", duration.count());
-    
-	return 0;
-}
