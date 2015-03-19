@@ -26,8 +26,15 @@ int __debug__ = 1; /* toggle for debug prints*/
     } while (0)
 
 
+enum
+{
+    // we could *mostly* make it work with a 15 puzzle by editing this
+    MATRIX_SIDE_SIZE    = 3,
+    MATRIX_SIZE         = MATRIX_SIDE_SIZE * MATRIX_SIDE_SIZE,
+};
+
 /// global vars
-int init[9] = {
+int init[MATRIX_SIZE] = {
 // 24 steps
 //	3, 4, 2,
 //	5, 1, 7,
@@ -44,7 +51,7 @@ int init[9] = {
     7, 4, 6,
 };
 
-int goal[9] = {
+int goal[MATRIX_SIZE] = {
 	1, 2, 3,
 	8, 0, 4,
 	7, 6, 5,
@@ -56,7 +63,7 @@ int node_counter = 0;
 struct Node;
 
 std::list<Node*> nodeQueue;
-Node* root; // it's ze tree
+Node* root = nullptr;
 
 enum SearchType
 {
@@ -67,7 +74,7 @@ enum SearchType
     SEARCH_TYPE_A_STAR,
 };
 
-SearchType searchType;
+SearchType searchType = SEARCH_TYPE_BFS;
 
 struct Node
 {
@@ -77,7 +84,7 @@ struct Node
         
         ++node_counter;
         if (node_counter % 1000 == 0)
-            printf("Node::Node - allocated %d nodes\n", node_counter);
+            DEBUG_LOG("Node::Node - allocated %d nodes", node_counter);
         
 		memset(state, 0, sizeof(state));
 		parent = nullptr;
@@ -86,7 +93,7 @@ struct Node
 		cost = 0;
 	}
 
-	int state[9];
+	int state[MATRIX_SIZE];
 	Node* parent;
 	int move; // applied move, the number that was switched with '0'
 	int depth; // calculated from parent
@@ -102,15 +109,15 @@ struct Node
 	// (i, j) should contain 0, we just want to switch the values of the 2 coordinate sets
 	void DoMove(int i, int j, int ni, int nj)
 	{
-		move = state[ni + nj * 3];
-		state[i + j * 3] = move;
-		state[ni + nj * 3] = 0;
+		move = state[CoordsToIdx(ni, nj)];
+		state[CoordsToIdx(i, j)] = move;
+		state[CoordsToIdx(ni, nj)] = 0;
         
-        cost = depth + HeuristicMahatthanDist(this);
+        cost = depth + GetManhattanDist();
         
         if (node_counter % 1000 == 0)
         {
-            for (int i = 0; i < 9; ++i)
+            for (int i = 0; i < MATRIX_SIZE; ++i)
                 printf("%d ", state[i]);
             
             printf("\n");
@@ -119,55 +126,44 @@ struct Node
                 nodeQueue.front()->cost, nodeQueue.front()->depth);
         }
 	}
-    
-    
-    static int HeuristicOffset(Node const* node)
+
+    // used heuristic
+    int GetManhattanDist() const
     {
         int result = 0;
-        for (int i = 0; i < 9; ++i)
+        for (int idx = 0; idx < MATRIX_SIZE; ++idx)
         {
-            if (node->state[i] == 0) // skip white spot
+            if (state[idx] == 0)
                 continue;
-            
-            if (node->state[i] != goal[i])
-                ++result;
-        }
-        
-        return result;
-    }
 
-    static int HMD_helper(int state_i, int state_j, int val)
-    {
-        for (int i = 0; i < 3; ++i)
-        {
-            for (int j = 0; j < 3; ++j)
+            // find the equivalent in the goal matrix
+            for (int k = 0; k < MATRIX_SIZE; ++k)
             {
-                if (val == goal[i + j * 3])
-                    return std::abs(state_i - i) + std::abs(state_j - j);
-            }
-        }
-        
-        printf("HMD_helper - couldn't find val %d, state_i is %d, state_j is %d\n", val, state_i, state_j);
-        assert(false);
-        return 0; // should never happen
-    }
-
-    static int HeuristicMahatthanDist(Node const* node)
-    {
-        int result = 0;
-        for (int i = 0; i < 3; ++i)
-        {
-            for (int j = 0; j < 3; ++j)
-            {
-                int stateIdx = i + j * 3;
-                if (node->state[stateIdx] == 0)
-                    continue;
+                if (state[idx] == goal[k])
+                {
+                    // get our x/y coordinates
+                    int i, j;
+                    IdxToCoords(i, j, idx);
+                    
+                    // get the goal's x/y coordinates
+                    int x, y;
+                    IdxToCoords(x, y, k);
                 
-                result += HMD_helper(i, j, node->state[stateIdx]);
+                    result += std::abs(i - x) + std::abs(j - y);
+                    break;
+                }
             }
         }
         
         return result;
+    }
+    
+    int CoordsToIdx(int i, int j) const { return i + j * 3; }
+    
+    void IdxToCoords(int& i, int& j, int idx) const
+    {
+        i = idx % MATRIX_SIDE_SIZE;
+        j = idx / MATRIX_SIDE_SIZE;
     }
 };
 
@@ -182,7 +178,7 @@ void FillFirstNode()
 	nodeQueue.push_back(node);
 }
 
-#define IS_VALID(x, y) x >= 0 && x < 3 && y >= 0 && y < 3
+#define IS_VALID(x, y) x >= 0 && x < MATRIX_SIDE_SIZE && y >= 0 && y < MATRIX_SIDE_SIZE
 
 std::list<Node*> MakeDescendants(Node* parent)
 {
@@ -291,7 +287,7 @@ void AddToQueueIDFS(std::list<Node*> descList)
 
 bool CompareNodes(Node* left, Node* right)
 {
-    return Node::HeuristicMahatthanDist(left) <= Node::HeuristicMahatthanDist(right);
+    return left->GetManhattanDist() <= right->GetManhattanDist();
 }
 
 // @todo: instead of a list, a std::map<int, Node*> would be more appropriate and would automatically sort
