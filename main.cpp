@@ -74,8 +74,6 @@ enum SearchType
     SEARCH_TYPE_A_STAR,
 };
 
-SearchType searchType = SEARCH_TYPE_BFS;
-
 struct Node
 {
 	Node()
@@ -106,26 +104,42 @@ struct Node
 		return memcmp(state, goal, sizeof(goal)) == 0;
 	}
 
-	// (i, j) should contain 0, we just want to switch the values of the 2 coordinate sets
-	void DoMove(int i, int j, int ni, int nj)
-	{
-		move = state[CoordsToIdx(ni, nj)];
-		state[CoordsToIdx(i, j)] = move;
-		state[CoordsToIdx(ni, nj)] = 0;
+    std::list<Node*> MakeDescendants()
+    {
+        std::list<Node*> list;
+
+        static const std::vector<std::vector<int>> offsets = { {1, 0}, {0, 1}, {-1, 0}, {0, -1} };
         
-        cost = depth + GetManhattanDist();
-        
-        if (node_counter % 1000 == 0)
+        for (int idx = 0; idx < MATRIX_SIZE; ++idx)
         {
-            for (int i = 0; i < MATRIX_SIZE; ++i)
-                printf("%d ", state[i]);
+            if (state[idx] != 0)
+                continue;
             
-            printf("\n");
-            printf("Cost is %d, depth is %d\n", cost, depth);
-            printf("Cost of the front of the queue is %d, depth is %d\n",
-                nodeQueue.front()->cost, nodeQueue.front()->depth);
+            int i, j;
+            IdxToCoords(i, j, idx);
+            
+            for (std::vector<int> offset : offsets)
+            {
+#define IS_VALID_COORDS(x, y) (x >= 0 && x < MATRIX_SIDE_SIZE && y >= 0 && y < MATRIX_SIDE_SIZE)
+
+                if (!IS_VALID_COORDS(i + offset[0], j + offset[1]))
+                    continue;
+                
+                int newIdx = CoordsToIdx(i + offset[0], j + offset[1]);
+                
+                Node* node = new Node();
+                node->parent = this;
+                node->depth = depth + 1;
+                memcpy(node->state, state, sizeof(init));
+                
+                node->DoMove(idx, newIdx); // must be after state initialization
+                
+                list.push_back(node);
+            }
         }
-	}
+
+        return list;
+    }
 
     // used heuristic
     int GetManhattanDist() const
@@ -158,13 +172,47 @@ struct Node
         return result;
     }
     
+    // 1, 2
+    // 1 + 6 = 7/
     int CoordsToIdx(int i, int j) const { return i + j * 3; }
     
+    // 0 -> 0, 0
+    // 1 -> 1, 0
+    // 2 -> 2, 0
+    // 3 -> 0, 1
+    // 4 -> 1, 1
+    // 5 -> 2, 1
+    // 6 -> 0, 2
+    // 7 -> 1, 2
+    // 8 -> 2, 2
     void IdxToCoords(int& i, int& j, int idx) const
     {
         i = idx % MATRIX_SIDE_SIZE;
         j = idx / MATRIX_SIDE_SIZE;
     }
+    
+private:
+    // pretty much a swap between index a and b
+	void DoMove(int a, int b)
+	{
+        assert(state[a] == 0 && a != b);
+        
+		move = state[a] = state[b];
+		state[b] = 0;
+        
+        cost = depth + GetManhattanDist();
+        
+        if (node_counter % 1000 == 0)
+        {
+            for (int i = 0; i < MATRIX_SIZE; ++i)
+                printf("%d ", state[i]);
+            
+            printf("\n");
+            printf("Cost is %d, depth is %d\n", cost, depth);
+            printf("Cost of the front of the queue is %d, depth is %d\n",
+                nodeQueue.front()->cost, nodeQueue.front()->depth);
+        }
+	}
 };
 
 void FillFirstNode()
@@ -176,66 +224,6 @@ void FillFirstNode()
 	root = node;
 
 	nodeQueue.push_back(node);
-}
-
-#define IS_VALID(x, y) x >= 0 && x < MATRIX_SIDE_SIZE && y >= 0 && y < MATRIX_SIDE_SIZE
-
-std::list<Node*> MakeDescendants(Node* parent)
-{
-	std::list<Node*> list;
-
-	// ain't this some ugly shit
-	for (int i = 0; i < 3; ++i)
-	{
-		for (int j = 0; j < 3; ++j)
-		{
-			if (parent->state[i + j * 3] == 0)
-			{
-				if (IS_VALID(i + 1, j))
-				{
-                    Node* node = new Node();
-                    node->parent = parent;
-                    node->depth = parent->depth + 1;
-                    memcpy(node->state, parent->state, sizeof(init));
-					node->DoMove(i, j, i + 1, j);
-					list.push_back(node);
-				}
-                
-				if (IS_VALID(i, j + 1))
-				{
-                    Node* node = new Node();
-                    node->parent = parent;
-                    node->depth = parent->depth + 1;
-                    memcpy(node->state, parent->state, sizeof(init));
-                    node->DoMove(i, j, i, j + 1);
-					list.push_back(node);
-				}
-                
-				if (IS_VALID(i - 1, j))
-				{
-                    Node* node = new Node();
-                    node->parent = parent;
-                    node->depth = parent->depth + 1;
-                    memcpy(node->state, parent->state, sizeof(init));
-                    node->DoMove(i, j, i - 1, j);
-					list.push_back(node);
-				}
-                
-				if (IS_VALID(i, j - 1))
-				{
-                    Node* node = new Node();
-                    node->parent = parent;
-                    node->depth = parent->depth + 1;
-                    memcpy(node->state, parent->state, sizeof(init));
-                    node->DoMove(i, j, i, j - 1);
-					list.push_back(node);
-				} 
-
-			}
-		}
-	}
-
-	return list;
 }
 
 void AddToQueueBFS(std::list<Node*> descList)
@@ -384,7 +372,7 @@ void Finish(Node* node)
 	printf("Solution size: %zu\n", moveList.size());
 }
 
-void search(int type)
+void GeneralSearchAlgorithm(SearchType searchType)
 {
     FillFirstNode();
 
@@ -392,16 +380,28 @@ void search(int type)
 
 	while (nodeQueue.empty() == false)
 	{
+        // remove front node
 		Node* node = nodeQueue.front();
 		nodeQueue.pop_front();
 		
+        // test if goal
 		if (node->IsGoal())
 		{
 			Finish(node);
 			return;
 		}
 
-		std::list<Node*> descList = MakeDescendants(node);
+        // get child nodes
+		std::list<Node*> descList = node->MakeDescendants();
+        
+        // apply search type
+        switch (searchType)
+        {
+            // ...
+        default:
+            break;
+        }
+        
         // options:
         // AddToQueueBFS
         // AddToQueueDFS
@@ -450,6 +450,8 @@ bool stringEndsWith(std::string s, std::string end) {
 
 int main(int argc, char** argv)
 {
+    SearchType searchType = SEARCH_TYPE_BFS;
+    
     for (int i = 0; i < argc; ++i)
     {
         if (strcmp(argv[i], "--start_config") == 0)
@@ -486,7 +488,7 @@ int main(int argc, char** argv)
     std::chrono::time_point<std::chrono::system_clock> start, end;
     start = std::chrono::system_clock::now();
     
-    search(0);
+    GeneralSearchAlgorithm(searchType);
     
     end = std::chrono::system_clock::now();
  
