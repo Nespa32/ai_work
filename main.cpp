@@ -1,14 +1,30 @@
 
 #include <stdio.h>
-#include <list>
 #include <cstring>
-#include <cassert>
 #include <cmath>
-#include <unordered_set>
 
-#include <iostream>
+// data structures
+#include <list>
+#include <vector>
+#include <unordered_set> // hash map
+
+// time measurement
 #include <chrono>
 #include <ctime>
+
+// debugging
+#include <cassert>
+
+int __debug__ = 1; /* toggle for debug prints*/
+
+#define DEBUG_LOG(...)                  \
+    do {                                \
+        if (__debug__  != 0) {          \
+            printf(__VA_ARGS__);        \
+            printf("\n");               \
+        }                               \
+    } while (0)
+
 
 /// global vars
 int init[9] = {
@@ -52,10 +68,6 @@ enum SearchType
 };
 
 SearchType searchType;
-
-// specific to IDFS search
-int IDFS_depth = 0;
-///
 
 struct Node
 {
@@ -245,24 +257,35 @@ void AddToQueueDFS(std::list<Node*> descList)
 // IDFS = Iterative DFS
 void AddToQueueIDFS(std::list<Node*> descList)
 {
+    // this only works because the program will only do one search before exiting
+    static int IDFS_depth = 0;
+    static std::vector<Node*> nodesToDelete;
+        
 	for (Node* node : descList)
     {
         if (node->depth <= IDFS_depth)
             nodeQueue.push_front(node);
+        
+        nodesToDelete.push_back(node);
     }
     
     // IDFS cycle
     // increase depth, clear all previous data
-    // @todo: delete previous nodes
     if (nodeQueue.empty())
     {
+        nodesToDelete.push_back(root);
+        
+        for (Node* node : nodesToDelete)
+            delete node;
+        
+        nodesToDelete.clear();
+        
+        node_counter = 0; // reset counter, previous nodes were freed
+        
         ++IDFS_depth;
         FillFirstNode(); // mister bones' wild ride never ends
         
         assert(nodeQueue.size() == 1);
-        
-        // debugging code
-        printf("IDFS: new depth %d\n", IDFS_depth);
     }
 }
 
@@ -307,6 +330,7 @@ struct NodeState
 
 };
 
+// needed to be able to use std::unordered_set<NodeState> (a hash map)
 namespace std
 {
     template <>
