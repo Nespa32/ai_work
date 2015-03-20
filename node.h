@@ -52,12 +52,15 @@ struct Node
 {
 public:
 	Node();
+    ~Node();
 
 	NodeState _state;
 	Node* _parent;
     
 	int _move; // applied move, the number that was switched with '0'
 	int _depth; // calculated from parent
+    
+    std::list<Node*> _childNodes;
     
 public:
 	bool IsGoal();
@@ -88,5 +91,24 @@ void GeneralSearchAlgorithm(SearchType searchType);
 
 // arg parsing helper
 bool StringEndsWith(std::string s, std::string end);
+
+// needed to be able to use std::unordered_set<NodeState> (a hash map)
+namespace std
+{
+    template <>
+    struct hash<NodeState>
+    {
+        std::size_t operator()(const NodeState& nodeState) const
+        {
+            std::hash<int> hasher;
+      
+            std::size_t h = 0;
+            for (int i = 0; i < MATRIX_SIZE; ++i)
+                h = h * 31 + hasher(nodeState._state[i]);
+      
+            return h;
+        }
+    };
+}
 
 #endif // _NODE_H_

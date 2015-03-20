@@ -18,7 +18,7 @@
 // project files
 #include "node.h"
 
-int __debug__ = 1; /* toggle for debug prints*/
+int __debug__ = 0; /* toggle for debug prints*/
 
 /// global vars
 int init[MATRIX_SIZE] = {
@@ -26,6 +26,11 @@ int init[MATRIX_SIZE] = {
 	3, 4, 2,
 	5, 1, 7,
 	6, 0, 8,
+
+// invalid
+//    6, 2, 7,
+//    5, 0, 3,
+//    8, 1, 4,
 
 // test, 3 steps
 //	1, 2, 3,
@@ -44,17 +49,19 @@ int goal[MATRIX_SIZE] = {
 	7, 6, 5,
 };
 
-// just for measuring
-int node_counter = 0;
+// total node measuring
+int node_counter_total = 0;
+int node_counter_exiting = 0;
 
-std::list<Node*> nodeQueue;
-Node* root = nullptr;
+// visited node states
+std::unordered_set<NodeState> visitedStates;
+std::list<Node*> nodeQueue; // nodes that have not been expanded yet
 
 int main(int argc, char** argv)
 {
     SearchType searchType = SEARCH_TYPE_BFS;
     
-    for (int i = 0; i < argc; ++i)
+    for (int i = 1; i < argc; ++i)
     {
         if (strcmp(argv[i], "--start_config") == 0)
         {
@@ -64,28 +71,32 @@ int main(int argc, char** argv)
         {
             // eat up the next 9 digits
         }
-        else if (strcmp(argv[i], "--search_type") == 0)
+        else if (strncmp(argv[i], "--search_type", strlen("--search_type")) == 0)
         {
             if (StringEndsWith(argv[i], "bfs"))
-                ;
-            else if (StringEndsWith(argv[i], "bfs"))
-                ;
+                searchType = SEARCH_TYPE_BFS;
+            else if (StringEndsWith(argv[i], "idfs")) // need to check before "dfs" since this string also ends with "dfs"
+                searchType = SEARCH_TYPE_IDFS;
             else if (StringEndsWith(argv[i], "dfs"))
-                ;
-            else if (StringEndsWith(argv[i], "idfs"))
-                ;
+                searchType = SEARCH_TYPE_DFS;
             else if (StringEndsWith(argv[i], "greedy"))
-                ;
+                searchType = SEARCH_TYPE_GREEDY;
             else if (StringEndsWith(argv[i], "astar"))
-                ;
+                searchType = SEARCH_TYPE_A_STAR;
             else
             {
                 printf("Bad search type (input string: %s)", argv[i]);
                 return 1;
             }
-            
+        }
+        else
+        {
+            printf("Unrecognised arg - <%s>\n", argv[i]);
+            return 1;
         }
     }
+    
+    //@ todo: check if initial state can even reach last
 
     std::chrono::time_point<std::chrono::system_clock> start, end;
     start = std::chrono::system_clock::now();
@@ -96,7 +107,8 @@ int main(int argc, char** argv)
  
     std::chrono::duration<float> duration = end - start;
  
-    printf("Nodes allocated: %d\n", node_counter);
+    printf("Total nodes allocated throughout search: %d\n", node_counter_total);
+    printf("Total nodes allocated right now: %d\n", node_counter_exiting);
     printf("Search duration: %f second(s)\n", duration.count());
     
 	return 0;
@@ -107,51 +119,97 @@ void FillFirstNode()
 	Node* node = new Node();
 	// init states
     node->_state = init;
-    
-	root = node;
 
 	nodeQueue.push_back(node);
 }
 
-void AddToQueueBFS(std::list<Node*> descList)
+void AddToQueueBFS(Node* /*parent*/, std::list<Node*> descList)
 {
 	for (Node* node : descList)
+    {
+        NodeState& state = node->_state;
+        if (visitedStates.find(state) != visitedStates.end())
+            continue;
+        
+        visitedStates.insert(state);
+        
 		nodeQueue.push_back(node);
+    }
 }
 
-void AddToQueueDFS(std::list<Node*> descList)
+void AddToQueueDFS(Node* parent, std::list<Node*> descList)
 {
 	for (Node* node : descList)
+    {
+        NodeState& state = node->_state;
+        if (visitedStates.find(state) != visitedStates.end())
+        {
+            delete node;
+            continue;
+        }
+        
+        visitedStates.insert(state);
+        
+        // add to parent list
+        parent->_childNodes.push_back(node);
+        
 		nodeQueue.push_front(node);
+    }
+    
+    // no child nodes with parent references, free up memory
+    while (parent->_childNodes.empty())
+    {
+        // it's turtles all the way up
+        Node* child = parent;
+        parent = child->_parent;
+        delete child;
+        
+        if (!parent) // we've reached the root and deleted everything
+            break;
+        
+        parent->_childNodes.remove(child);
+    }
 }
 
 // IDFS = Iterative DFS
-void AddToQueueIDFS(std::list<Node*> descList)
+void AddToQueueIDFS(Node* parent, std::list<Node*> descList)
 {
     // this only works because the program will only do one search before exiting
     static int IDFS_depth = 0;
-    static std::vector<Node*> nodesToDelete;
         
 	for (Node* node : descList)
     {
-        if (node->_depth <= IDFS_depth)
-            nodeQueue.push_front(node);
+        if (node->_depth > IDFS_depth)
+        {
+            delete node; // avoid memory leaks
+            continue;
+        }
         
-        nodesToDelete.push_back(node);
+        // add to parent list
+        parent->_childNodes.push_back(node);
+        
+        nodeQueue.push_front(node);
+    }
+    
+    // no child nodes with parent references, free up memory
+    while (parent->_childNodes.empty())
+    {
+        // it's turtles all the way up
+        Node* child = parent;
+        parent = child->_parent;
+        delete child;
+        
+        if (!parent) // we've reached the root and deleted everything
+            break;
+        
+        parent->_childNodes.remove(child);
     }
     
     // IDFS cycle
     // increase depth, clear all previous data
     if (nodeQueue.empty())
     {
-        nodesToDelete.push_back(root);
-        
-        for (Node* node : nodesToDelete)
-            delete node;
-        
-        nodesToDelete.clear();
-        
-        node_counter = 0; // reset counter, previous nodes were freed
+        DEBUG_LOG("IDFS: Moving to new depth: %d", IDFS_depth);
         
         ++IDFS_depth;
         FillFirstNode(); // mister bones' wild ride never ends
@@ -160,10 +218,16 @@ void AddToQueueIDFS(std::list<Node*> descList)
     }
 }
 
-void AddToQueueGreedy(std::list<Node*> descList)
+void AddToQueueGreedy(Node* parent, std::list<Node*> descList)
 {
 	for (Node* node : descList)
     {
+        NodeState& state = node->_state;
+        if (visitedStates.find(state) != visitedStates.end())
+            continue;
+        
+        visitedStates.insert(state);
+        
         int cost = node->GetManhattanDist();
         
         // manually *sort* the list
@@ -180,36 +244,16 @@ void AddToQueueGreedy(std::list<Node*> descList)
     }
 }
 
-// needed to be able to use std::unordered_set<NodeState> (a hash map)
-namespace std
+void AddToQueueAStar(Node* parent, std::list<Node*> descList)
 {
-    template <>
-    struct hash<NodeState>
-    {
-        std::size_t operator()(const NodeState& nodeState) const
-        {
-            std::hash<int> hasher;
-      
-            std::size_t h = 0;
-            for (int i = 0; i < MATRIX_SIZE; ++i)
-                h = h * 31 + hasher(nodeState._state[i]);
-      
-            return h;
-        }
-    };
-}
-
-void AddToQueueAStar(std::list<Node*> descList)
-{
-    static std::unordered_set<NodeState> visited;
-    
 	for (Node* node : descList)
     {
         NodeState& state = node->_state;
-        if (visited.find(state) != visited.end())
+        if (visitedStates.find(state) != visitedStates.end())
             continue;
         
-        visited.insert(state);
+        visitedStates.insert(state);
+        
         int cost = node->_depth + node->GetManhattanDist();
         
         // manually *sort* the list
@@ -246,6 +290,28 @@ void Finish(Node* node)
 
 void GeneralSearchAlgorithm(SearchType searchType)
 {
+    switch (searchType)
+    {
+        case SEARCH_TYPE_BFS:
+            printf("Using BFS search...\n");
+            break;
+        case SEARCH_TYPE_DFS:
+            printf("Using DFS search...\n");
+            break;
+        case SEARCH_TYPE_IDFS:
+            printf("Using IDFS search...\n");
+            break;
+        case SEARCH_TYPE_GREEDY:
+            printf("Using Greedy search...\n");
+            break;
+        case SEARCH_TYPE_A_STAR:
+            printf("Using A* search...\n");
+            break;
+        default:
+            assert(false);
+            break;
+    }
+
     FillFirstNode();
 
 	assert(!nodeQueue.empty());
@@ -269,22 +335,28 @@ void GeneralSearchAlgorithm(SearchType searchType)
         // apply search type
         switch (searchType)
         {
-            // ...
+        case SEARCH_TYPE_BFS:
+            AddToQueueBFS(node, descList);
+            break;
+        case SEARCH_TYPE_DFS:
+            AddToQueueDFS(node, descList);
+            break;
+        case SEARCH_TYPE_IDFS:
+            AddToQueueIDFS(node, descList);
+            break;
+        case SEARCH_TYPE_GREEDY:
+            AddToQueueGreedy(node, descList);
+            break;
+        case SEARCH_TYPE_A_STAR:
+            AddToQueueAStar(node, descList);
+            break;
         default:
+            assert(false);
             break;
         }
-        
-        // options:
-        // AddToQueueBFS
-        // AddToQueueDFS
-        // AddToQueueIDFS
-        // AddToQueueGreedy
-        // AddToQueueAStar
-        
-		AddToQueueAStar(descList);
 	}
 
-	printf("No bueno\n");
+	printf("Goal node not found\n");
 }
 
 /*
@@ -322,13 +394,20 @@ bool StringEndsWith(std::string s, std::string end) {
 
 Node::Node()
 {
-    ++node_counter;
-    if (node_counter % 1000 == 0)
-        DEBUG_LOG("Node::Node - allocated %d nodes", node_counter);
+    ++node_counter_exiting;
+    ++node_counter_total;
+    if (node_counter_total % 1000 == 0)
+        DEBUG_LOG("Node::Node - allocated %d nodes", node_counter_total);
 
     _parent = nullptr;
     _move = 0;
     _depth = 0;
+}
+
+Node::~Node()
+{
+    --node_counter_exiting;
+    assert(_childNodes.empty());
 }
 
 bool Node::IsGoal()
