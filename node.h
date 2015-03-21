@@ -40,6 +40,7 @@ struct NodeState
     }
     
     int _state[MATRIX_SIZE];
+    int _move; // applied move, the number that was switched with '0'
     
     bool operator== (NodeState const& node) const { return memcmp(_state, node._state, MATRIX_STRUCT_SIZE) == 0; }
     bool operator== (int array[MATRIX_SIZE]) const { return memcmp(_state, array, MATRIX_STRUCT_SIZE) == 0; }
@@ -57,7 +58,6 @@ public:
 	NodeState _state;
 	Node* _parent;
     
-	int _move; // applied move, the number that was switched with '0'
 	int _depth; // calculated from parent
     
     std::list<Node*> _childNodes;
@@ -65,17 +65,13 @@ public:
 public:
 	bool IsGoal();
 
-    std::list<Node*> MakeDescendants();
+    std::list<NodeState> MakeDescendants() const;
 
     // used heuristic
     int GetManhattanDist() const;
     
     int CoordsToIdx(int i, int j) const;
     void IdxToCoords(int& i, int& j, int idx) const;
-    
-private:
-    // pretty much a swap between index a and b
-	void DoMove(int a, int b);
 };
 
 void FillFirstNode();
