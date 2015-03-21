@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <cstring>
 #include <cmath>
+#include <string>
 
 // data structures
 #include <list>
@@ -66,10 +67,30 @@ int main(int argc, char** argv)
         if (strcmp(argv[i], "--start_config") == 0)
         {
             // eat up the next 9 digits
+            for (int j = 0; j < MATRIX_SIZE; ++j)
+            {
+                if (++i >= argc)
+                {
+                    printf("--start_config reading error - missing digits?\n");
+                    return 1;
+                }
+                
+                init[j] = atoi(argv[i]);
+            }
         }
         else if (strcmp(argv[i], "--end_config") == 0)
         {
             // eat up the next 9 digits
+            for (int j = 0; j < MATRIX_SIZE; ++j)
+            {
+                if (++i >= argc)
+                {
+                    printf("--end_config reading error - missing digits?\n");
+                    return 1;
+                }
+                
+                goal[j] = atoi(argv[i]);
+            }
         }
         else if (strncmp(argv[i], "--search_type", strlen("--search_type")) == 0)
         {
@@ -96,7 +117,33 @@ int main(int argc, char** argv)
         }
     }
     
-    //@ todo: check if initial state can even reach last
+    ///
+    int sortedConfig[MATRIX_SIZE] = {0, 1, 2, 3, 4, 5, 6, 7, 8};
+    
+    for (int i = 0; i < MATRIX_SIZE; ++i)
+    {
+		if (goal[i] != 0)
+            sortedConfig[goal[i] - 1] = init[i];
+		else
+            sortedConfig[8] = init[i];
+    }
+
+	int inversions = 0;
+	for (int i = 0; i < MATRIX_SIZE; ++i)
+    {
+		for (int j = i + 1; j < MATRIX_SIZE; ++j)
+        {
+			if (sortedConfig[i] > sortedConfig[j] && sortedConfig[i] && sortedConfig[j])
+				++inversions;
+        }
+    }
+
+	if (inversions % 2 != 0) // odd number of inversions
+    {
+        printf("Final state not reachable (%d inversions)\n", inversions);
+        return 1;
+    }
+    ///
 
     std::chrono::time_point<std::chrono::system_clock> start, end;
     start = std::chrono::system_clock::now();
