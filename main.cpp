@@ -1,5 +1,6 @@
 
 #include <stdio.h>
+#include <cstdlib>
 #include <cstring>
 #include <cmath>
 #include <string>
@@ -22,7 +23,7 @@
 int __debug__ = 0; /* toggle for debug prints*/
 
 /// global vars
-int init[MATRIX_SIZE] = {
+int initial_config[MATRIX_SIZE] = {
 // 24 steps
 	3, 4, 2,
 	5, 1, 7,
@@ -44,7 +45,7 @@ int init[MATRIX_SIZE] = {
 //    7, 4, 6,
 };
 
-int goal[MATRIX_SIZE] = {
+int final_config[MATRIX_SIZE] = {
 	1, 2, 3,
 	8, 0, 4,
 	7, 6, 5,
@@ -60,90 +61,12 @@ std::list<Node*> nodeQueue; // nodes that have not been expanded yet
 
 int main(int argc, char** argv)
 {
-    SearchType searchType = SEARCH_TYPE_BFS;
+    // handle program options
+    SearchType searchType = HandleArgs(argc, argv);
     
-    for (int i = 1; i < argc; ++i)
-    {
-        if (strcmp(argv[i], "--start_config") == 0)
-        {
-            // eat up the next 9 digits
-            for (int j = 0; j < MATRIX_SIZE; ++j)
-            {
-                if (++i >= argc)
-                {
-                    printf("--start_config reading error - missing digits?\n");
-                    return 1;
-                }
-                
-                init[j] = atoi(argv[i]);
-            }
-        }
-        else if (strcmp(argv[i], "--end_config") == 0)
-        {
-            // eat up the next 9 digits
-            for (int j = 0; j < MATRIX_SIZE; ++j)
-            {
-                if (++i >= argc)
-                {
-                    printf("--end_config reading error - missing digits?\n");
-                    return 1;
-                }
-                
-                goal[j] = atoi(argv[i]);
-            }
-        }
-        else if (strncmp(argv[i], "--search_type", strlen("--search_type")) == 0)
-        {
-            if (StringEndsWith(argv[i], "bfs"))
-                searchType = SEARCH_TYPE_BFS;
-            else if (StringEndsWith(argv[i], "idfs")) // need to check before "dfs" since this string also ends with "dfs"
-                searchType = SEARCH_TYPE_IDFS;
-            else if (StringEndsWith(argv[i], "dfs"))
-                searchType = SEARCH_TYPE_DFS;
-            else if (StringEndsWith(argv[i], "greedy"))
-                searchType = SEARCH_TYPE_GREEDY;
-            else if (StringEndsWith(argv[i], "astar"))
-                searchType = SEARCH_TYPE_A_STAR;
-            else
-            {
-                printf("Bad search type (input string: %s)", argv[i]);
-                return 1;
-            }
-        }
-        else
-        {
-            printf("Unrecognised arg - <%s>\n", argv[i]);
-            return 1;
-        }
-    }
-    
-    ///
-    int sortedConfig[MATRIX_SIZE] = {0, 1, 2, 3, 4, 5, 6, 7, 8};
-    
-    for (int i = 0; i < MATRIX_SIZE; ++i)
-    {
-		if (goal[i] != 0)
-            sortedConfig[goal[i] - 1] = init[i];
-		else
-            sortedConfig[8] = init[i];
-    }
-
-	int inversions = 0;
-	for (int i = 0; i < MATRIX_SIZE; ++i)
-    {
-		for (int j = i + 1; j < MATRIX_SIZE; ++j)
-        {
-			if (sortedConfig[i] > sortedConfig[j] && sortedConfig[i] && sortedConfig[j])
-				++inversions;
-        }
-    }
-
-	if (inversions % 2 != 0) // odd number of inversions
-    {
-        printf("Final state not reachable (%d inversions)\n", inversions);
+    // check if final_config can be reached from initial_config
+    if (!IsValidConfig())
         return 1;
-    }
-    ///
 
     std::chrono::time_point<std::chrono::system_clock> start, end;
     start = std::chrono::system_clock::now();
@@ -165,7 +88,7 @@ void FillFirstNode()
 {
 	Node* node = new Node();
 	// init states
-    node->_state = init;
+    node->_state = initial_config;
 
 	nodeQueue.push_back(node);
 }
@@ -328,9 +251,9 @@ void Finish(Node* node)
 	}
 
 	for (int i : moveList)
-		printf("%d : ", i);
+		printf("%d -> ", i);
 
-	printf("\n");
+	printf("Done\n");
 
 	printf("Solution size: %zu\n", moveList.size());
 }
@@ -409,8 +332,8 @@ void GeneralSearchAlgorithm(SearchType searchType)
 /*
     help
     
-    --start_config [list of 9 numbers]
-    i.e: --start_config 1 2 3 8 0 4 7 6 5
+    --initial_config [list of 9 numbers]
+    i.e: --initial_config 1 2 3 8 0 4 7 6 5
     equals to
     {
         1, 2, 3,
@@ -418,7 +341,7 @@ void GeneralSearchAlgorithm(SearchType searchType)
         7, 6, 5
     }
     
-    --end_config [list of 9 numbers]
+    --final_config [list of 9 numbers]
 
     --search_type=<type>
     types:
@@ -431,6 +354,133 @@ void GeneralSearchAlgorithm(SearchType searchType)
     i.e: --search_type=greedy
 */
 
+bool IsValidConfig()
+{
+    int sorted_config[MATRIX_SIZE] = {0, 1, 2, 3, 4, 5, 6, 7, 8};
+    
+    for (int i = 0; i < MATRIX_SIZE; ++i)
+    {
+		if (final_config[i] != 0)
+            sorted_config[final_config[i] - 1] = initial_config[i];
+		else
+            sorted_config[8] = initial_config[i];
+    }
+
+	int inversions = 0;
+	for (int i = 0; i < MATRIX_SIZE; ++i)
+    {
+		for (int j = i + 1; j < MATRIX_SIZE; ++j)
+        {
+			if (sorted_config[i] > sorted_config[j] && sorted_config[i] && sorted_config[j])
+				++inversions;
+        }
+    }
+
+	if (inversions % 2 != 0) // odd number of inversions
+    {
+        printf("Final state not reachable (%d inversions)\n", inversions);
+        return false;
+    }
+    
+    return true;
+}
+
+// handles options, sets the search type
+SearchType HandleArgs(int argc, char** argv)
+{
+    SearchType searchType = SEARCH_TYPE_BFS;
+    
+    bool isInitialConfigSet = false;
+    bool isFinalConfigSet = false;
+    bool isSearchTypeSet = false;
+    
+    for (int i = 1; i < argc; ++i)
+    {
+        if (strcmp(argv[i], "--initial_config") == 0)
+        {
+            isInitialConfigSet = true;
+            
+            // eat up the next 9 digits
+            for (int j = 0; j < MATRIX_SIZE; ++j)
+            {
+                if (++i >= argc)
+                {
+                    printf("--initial_config reading error - missing digits?\n");
+                    exit(1);
+                }
+                
+                initial_config[j] = atoi(argv[i]);
+            }
+        }
+        else if (strcmp(argv[i], "--final_config") == 0)
+        {
+            isFinalConfigSet = true;
+            
+            // eat up the next 9 digits
+            for (int j = 0; j < MATRIX_SIZE; ++j)
+            {
+                if (++i >= argc)
+                {
+                    printf("--final_config reading error - missing digits?\n");
+                    exit(1);
+                }
+                
+                final_config[j] = atoi(argv[i]);
+            }
+        }
+        else if (strncmp(argv[i], "--search_type", strlen("--search_type")) == 0)
+        {
+            isSearchTypeSet = true;
+            
+            if (StringEndsWith(argv[i], "bfs"))
+                searchType = SEARCH_TYPE_BFS;
+            else if (StringEndsWith(argv[i], "idfs")) // need to check before "dfs" since this string also ends with "dfs"
+                searchType = SEARCH_TYPE_IDFS;
+            else if (StringEndsWith(argv[i], "dfs"))
+                searchType = SEARCH_TYPE_DFS;
+            else if (StringEndsWith(argv[i], "greedy"))
+                searchType = SEARCH_TYPE_GREEDY;
+            else if (StringEndsWith(argv[i], "astar"))
+                searchType = SEARCH_TYPE_A_STAR;
+            else
+            {
+                printf("Bad search type (input string: %s)", argv[i]);
+                exit(1);
+            }
+        }
+        else
+        {
+            printf("Unrecognised arg - <%s>\n", argv[i]);
+            exit(1);
+        }
+    }
+    
+    if (!isInitialConfigSet)
+    {
+        printf("Initial config not set - using [ ");
+        
+        for (int i = 0; i < MATRIX_SIZE; ++i)
+            printf("%d ", initial_config[i]);
+        
+        printf("] by default\n");
+    }
+
+    if (!isFinalConfigSet)
+    {
+        printf("Final config not set - using [ ");
+        
+        for (int i = 0; i < MATRIX_SIZE; ++i)
+            printf("%d ", final_config[i]);
+        
+        printf("] by default\n");
+    }
+    
+    if (!isSearchTypeSet)
+        printf("Search type not set - using bfs by default\n");
+    
+    return searchType;
+}
+    
 // arg parsing helper
 bool StringEndsWith(std::string s, std::string end) {
     if (s.length() < end.length())
@@ -459,7 +509,7 @@ Node::~Node()
 
 bool Node::IsGoal()
 {
-    return _state == goal;
+    return _state == final_config;
 }
 
 std::list<Node*> Node::MakeDescendants()
@@ -510,7 +560,7 @@ int Node::GetManhattanDist() const
         // find the equivalent in the goal matrix
         for (int k = 0; k < MATRIX_SIZE; ++k)
         {
-            if (_state._state[idx] == goal[k])
+            if (_state._state[idx] == final_config[k])
             {
                 // get our x/y coordinates
                 int i, j;

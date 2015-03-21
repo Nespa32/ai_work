@@ -89,6 +89,12 @@ void Finish(Node* node);
 
 void GeneralSearchAlgorithm(SearchType searchType);
 
+// checks if final_config can be reached from initial_config
+bool IsValidConfig();
+
+// handles options, sets the search type
+SearchType HandleArgs(int argc, char** argv);
+
 // arg parsing helper
 bool StringEndsWith(std::string s, std::string end);
 
