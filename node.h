@@ -53,6 +53,7 @@ struct Node
 {
 public:
 	Node();
+    Node(Node* parent, NodeState& state);
     ~Node();
 
 	NodeState _state;

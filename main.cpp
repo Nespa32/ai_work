@@ -102,7 +102,7 @@ void AddToQueueBFS(Node* parent, std::list<NodeState> descList)
         
         visitedStates.insert(nodeState);
         
-        Node* node = new Node();
+        Node* node = new Node(parent, nodeState);
         node->_parent = parent;
         node->_depth = parent->_depth + 1;
         node->_state = nodeState;
@@ -120,11 +120,8 @@ void AddToQueueDFS(Node* parent, std::list<NodeState> descList)
         
         visitedStates.insert(nodeState);
         
-        Node* node = new Node();
-        node->_parent = parent;
-        node->_depth = parent->_depth + 1;
-        node->_state = nodeState;
-
+        Node* node = new Node(parent, nodeState);
+        
         // add to parent list
         parent->_childNodes.push_back(node);
         
@@ -156,10 +153,7 @@ void AddToQueueIDFS(Node* parent, std::list<NodeState> descList)
     {
         for (NodeState nodeState : descList)
         {
-            Node* node = new Node();
-            node->_parent = parent;
-            node->_depth = parent->_depth + 1;
-            node->_state = nodeState;
+            Node* node = new Node(parent, nodeState);
             
             // add to parent list
             parent->_childNodes.push_back(node);
@@ -204,10 +198,7 @@ void AddToQueueGreedy(Node* parent, std::list<NodeState> descList)
         
         visitedStates.insert(nodeState);
         
-        Node* node = new Node();
-        node->_parent = parent;
-        node->_depth = parent->_depth + 1;
-        node->_state = nodeState;
+        Node* node = new Node(parent, nodeState);
             
         int cost = node->GetManhattanDist();
         
@@ -234,10 +225,7 @@ void AddToQueueAStar(Node* parent, std::list<NodeState> descList)
         
         visitedStates.insert(nodeState);
         
-        Node* node = new Node();
-        node->_parent = parent;
-        node->_depth = parent->_depth + 1;
-        node->_state = nodeState;
+        Node* node = new Node(parent, nodeState);
         
         int cost = node->_depth + node->GetManhattanDist();
         
@@ -513,6 +501,18 @@ Node::Node()
 
     _parent = nullptr;
     _depth = 0;
+}
+
+Node::Node(Node* parent, NodeState& nodeState)
+{
+    ++node_counter_exiting;
+    ++node_counter_total;
+    if (node_counter_total % 1000 == 0)
+        DEBUG_LOG("Node::Node - allocated %d nodes", node_counter_total);
+    
+    _parent = parent;
+    _depth = parent->_depth + 1;
+    _state = nodeState;
 }
 
 Node::~Node()
