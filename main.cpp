@@ -103,9 +103,6 @@ void AddToQueueBFS(Node* parent, std::list<NodeState> descList)
         visitedStates.insert(nodeState);
         
         Node* node = new Node(parent, nodeState);
-        node->_parent = parent;
-        node->_depth = parent->_depth + 1;
-        node->_state = nodeState;
 
 		nodeQueue.push_back(node);
     }
