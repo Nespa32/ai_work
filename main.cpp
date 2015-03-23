@@ -119,14 +119,14 @@ void AddToQueueDFS(Node* parent, std::list<NodeState> descList)
         
         Node* node = new Node(parent, nodeState);
         
-        // add to parent list
-        parent->_childNodes.push_back(node);
+        // count the child
+        ++parent->_nChildNodes;
         
 		nodeQueue.push_front(node);
     }
     
     // no child nodes with parent references, free up memory
-    while (parent->_childNodes.empty())
+    while (parent->_nChildNodes == 0)
     {
         // it's turtles all the way up
         Node* child = parent;
@@ -136,7 +136,7 @@ void AddToQueueDFS(Node* parent, std::list<NodeState> descList)
         if (!parent) // we've reached the root and deleted everything
             break;
         
-        parent->_childNodes.remove(child);
+        --parent->_nChildNodes;
     }
 }
 
@@ -152,15 +152,15 @@ void AddToQueueIDFS(Node* parent, std::list<NodeState> descList)
         {
             Node* node = new Node(parent, nodeState);
             
-            // add to parent list
-            parent->_childNodes.push_back(node);
-            
+            // count the child
+            ++parent->_nChildNodes;
+        
             nodeQueue.push_front(node);
         }
     }
     
     // no child nodes with parent references, free up memory
-    while (parent->_childNodes.empty())
+    while (parent->_nChildNodes == 0)
     {
         // it's turtles all the way up
         Node* child = parent;
@@ -170,14 +170,14 @@ void AddToQueueIDFS(Node* parent, std::list<NodeState> descList)
         if (!parent) // we've reached the root and deleted everything
             break;
         
-        parent->_childNodes.remove(child);
+        --parent->_nChildNodes;
     }
     
     // IDFS cycle
     // increase depth, clear all previous data
     if (nodeQueue.empty())
     {
-        DEBUG_LOG("IDFS: Moving to new depth: %d", IDFS_depth);
+        printf("IDFS: Moving to new depth: %d\n", IDFS_depth);
         
         ++IDFS_depth;
         FillFirstNode(); // mister bones' wild ride never ends
@@ -512,7 +512,7 @@ Node::Node(Node* parent, NodeState& nodeState)
 Node::~Node()
 {
     --node_counter_exiting;
-    assert(_childNodes.empty());
+    assert(_nChildNodes == 0);
 }
 
 bool Node::IsGoal()
