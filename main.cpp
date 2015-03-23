@@ -217,11 +217,6 @@ void AddToQueueAStar(Node* parent, std::list<NodeState> descList)
 {
 	for (NodeState nodeState : descList)
     {
-        if (visitedStates.find(nodeState) != visitedStates.end())
-            continue;
-        
-        visitedStates.insert(nodeState);
-        
         Node* node = new Node(parent, nodeState);
         
         int cost = node->_depth + node->GetManhattanDist();
