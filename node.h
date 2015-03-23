@@ -52,7 +52,7 @@ struct NodeState
 struct Node
 {
 public:
-	Node();
+	Node(NodeState& state);
     Node(Node* parent, NodeState& state);
     ~Node();
 
@@ -60,6 +60,7 @@ public:
 	Node* _parent;
     
 	int _depth; // calculated from parent
+    int _cost;
     
     std::list<Node*> _childNodes;
     
@@ -67,12 +68,19 @@ public:
 	bool IsGoal();
 
     std::list<NodeState> MakeDescendants() const;
-
-    // used heuristic
-    int GetManhattanDist() const;
     
     int CoordsToIdx(int i, int j) const;
     void IdxToCoords(int& i, int& j, int idx) const;
+    
+private:
+    // used heuristic
+    int GetManhattanDist() const;
+    // depends on search type, used on node initialization
+    // needs to be called *after* _depth is initialized
+    int GetNodeCost() const;
+    
+public:
+    bool operator< (Node const& node) const { return _cost < node._cost; }
 };
 
 void FillFirstNode();
@@ -84,13 +92,13 @@ void AddToQueueAStar(std::list<Node*> descList);
 
 void Finish(Node* node);
 
-void GeneralSearchAlgorithm(SearchType searchType);
+void GeneralSearchAlgorithm();
 
 // checks if final_config can be reached from initial_config
 bool IsValidConfig();
 
 // handles options, sets the search type
-SearchType HandleArgs(int argc, char** argv);
+void HandleArgs(int argc, char** argv);
 
 // arg parsing helper
 bool StringEndsWith(std::string s, std::string end);

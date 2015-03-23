@@ -59,10 +59,12 @@ int node_counter_exiting = 0;
 std::unordered_set<NodeState> visitedStates;
 std::list<Node*> nodeQueue; // nodes that have not been expanded yet
 
+SearchType searchType = SEARCH_TYPE_BFS;
+
 int main(int argc, char** argv)
 {
     // handle program options
-    SearchType searchType = HandleArgs(argc, argv);
+    HandleArgs(argc, argv);
     
     // check if final_config can be reached from initial_config
     if (!IsValidConfig())
@@ -71,7 +73,7 @@ int main(int argc, char** argv)
     std::chrono::time_point<std::chrono::system_clock> start, end;
     start = std::chrono::system_clock::now();
     
-    GeneralSearchAlgorithm(searchType);
+    GeneralSearchAlgorithm();
     
     end = std::chrono::system_clock::now();
  
@@ -86,11 +88,9 @@ int main(int argc, char** argv)
 
 void FillFirstNode()
 {
-	Node* node = new Node();
-	// init states
-    node->_state = initial_config;
-
-	nodeQueue.push_back(node);
+    NodeState nodeState = initial_config;
+	Node* node = new Node(nodeState);
+    nodeQueue.push_back(node);
 }
 
 void AddToQueueBFS(Node* parent, std::list<NodeState> descList)
@@ -196,20 +196,21 @@ void AddToQueueGreedy(Node* parent, std::list<NodeState> descList)
         visitedStates.insert(nodeState);
         
         Node* node = new Node(parent, nodeState);
-            
-        int cost = node->GetManhattanDist();
         
+        int cost = node->_cost;
+
         // manually *sort* the list
         // search through the list up to the point where nodes have a higher cost, and insert our node right before
         // an std::map<int, Node*> (a balanced tree) would automatically sort and would have a log(n) insert op, but we need to use the queue for other searches
         auto itr = nodeQueue.begin();
         for (; itr != nodeQueue.end(); ++itr)
         {
-            if (cost <= (*itr)->GetManhattanDist())
+            Node* n = *itr;
+            if (cost <= n->_cost)
                 break;
         }
 
-		nodeQueue.insert(itr, node);
+        nodeQueue.insert(itr, node);
     }
 }
 
@@ -219,8 +220,8 @@ void AddToQueueAStar(Node* parent, std::list<NodeState> descList)
     {
         Node* node = new Node(parent, nodeState);
         
-        int cost = node->_depth + node->GetManhattanDist();
-        
+        int cost = node->_cost;
+
         // manually *sort* the list
         // search through the list up to the point where nodes have a higher cost, and insert our node right before
         // an std::map<int, Node*> (a balanced tree) would automatically sort and would have a log(n) insert op, but we need to use the queue for other searches
@@ -228,11 +229,11 @@ void AddToQueueAStar(Node* parent, std::list<NodeState> descList)
         for (; itr != nodeQueue.end(); ++itr)
         {
             Node* n = *itr;
-            if (cost <= n->_depth + n->GetManhattanDist())
+            if (cost <= n->_cost)
                 break;
         }
 
-		nodeQueue.insert(itr, node);
+        nodeQueue.insert(itr, node);
     }
 }
 
@@ -253,7 +254,7 @@ void Finish(Node* node)
 	printf("Solution size: %zu\n", moveList.size());
 }
 
-void GeneralSearchAlgorithm(SearchType searchType)
+void GeneralSearchAlgorithm()
 {
     switch (searchType)
     {
@@ -279,13 +280,13 @@ void GeneralSearchAlgorithm(SearchType searchType)
 
     FillFirstNode();
 
-	assert(!nodeQueue.empty());
+    assert(!nodeQueue.empty());
 
 	while (nodeQueue.empty() == false)
 	{
         // remove front node
 		Node* node = nodeQueue.front();
-		nodeQueue.pop_front();
+        nodeQueue.pop_front();
 		
         // test if goal
 		if (node->IsGoal())
@@ -381,9 +382,9 @@ bool IsValidConfig()
 }
 
 // handles options, sets the search type
-SearchType HandleArgs(int argc, char** argv)
+void HandleArgs(int argc, char** argv)
 {
-    SearchType searchType = SEARCH_TYPE_BFS;
+    searchType = SEARCH_TYPE_BFS;
     
     bool isInitialConfigSet = false;
     bool isFinalConfigSet = false;
@@ -472,8 +473,6 @@ SearchType HandleArgs(int argc, char** argv)
     
     if (!isSearchTypeSet)
         printf("Search type not set - using bfs by default\n");
-    
-    return searchType;
 }
     
 // arg parsing helper
@@ -484,7 +483,7 @@ bool StringEndsWith(std::string s, std::string end) {
     return s.compare(s.length() - end.length(), end.length(), end) == 0;
 }
 
-Node::Node()
+Node::Node(NodeState& nodeState)
 {
     ++node_counter_exiting;
     ++node_counter_total;
@@ -493,6 +492,8 @@ Node::Node()
 
     _parent = nullptr;
     _depth = 0;
+    _state = nodeState;
+    _cost = GetNodeCost();
 }
 
 Node::Node(Node* parent, NodeState& nodeState)
@@ -505,6 +506,7 @@ Node::Node(Node* parent, NodeState& nodeState)
     _parent = parent;
     _depth = parent->_depth + 1;
     _state = nodeState;
+    _cost = GetNodeCost();
 }
 
 Node::~Node()
@@ -592,4 +594,17 @@ void Node::IdxToCoords(int& i, int& j, int idx) const
 {
     i = idx % MATRIX_SIDE_SIZE;
     j = idx / MATRIX_SIDE_SIZE;
+}
+
+int Node::GetNodeCost() const
+{
+    switch (searchType)
+    {
+    case SEARCH_TYPE_GREEDY:
+        return GetManhattanDist();
+    case SEARCH_TYPE_A_STAR:
+        return _depth + GetManhattanDist();
+    default:
+        return _depth;
+    }
 }
