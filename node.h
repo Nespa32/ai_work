@@ -62,7 +62,7 @@ public:
 	int _depth; // calculated from parent
     int _cost;
     
-    std::list<Node*> _childNodes;
+    int _nChildNodes; // number of child nodes, used for DFS/IDFS
     
 public:
 	bool IsGoal();
