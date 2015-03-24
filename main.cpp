@@ -8,7 +8,7 @@
 // data structures
 #include <list>
 #include <vector>
-#include <unordered_set> // hash map
+#include <unordered_map> // hash map
 
 // time measurement
 #include <chrono>
@@ -56,7 +56,8 @@ int node_counter_total = 0;
 int node_counter_exiting = 0;
 
 // visited node states
-std::unordered_set<NodeState> visitedStates;
+// NodeState -> depth (used for A*/IDFS checks)
+std::unordered_map<NodeState, int> visitedStates;
 std::list<Node*> nodeQueue; // nodes that have not been expanded yet
 
 SearchType searchType = SEARCH_TYPE_BFS;
@@ -95,34 +96,34 @@ void FillFirstNode()
 
 void AddToQueueBFS(Node* parent, std::list<NodeState> descList)
 {
-	for (NodeState nodeState : descList)
+    for (NodeState nodeState : descList)
     {
         if (visitedStates.find(nodeState) != visitedStates.end())
             continue;
         
-        visitedStates.insert(nodeState);
+        visitedStates[nodeState] = 0;
         
         Node* node = new Node(parent, nodeState);
 
-		nodeQueue.push_back(node);
+        nodeQueue.push_back(node);
     }
 }
 
 void AddToQueueDFS(Node* parent, std::list<NodeState> descList)
 {
-	for (NodeState nodeState : descList)
+    for (NodeState nodeState : descList)
     {
         if (visitedStates.find(nodeState) != visitedStates.end())
             continue;
         
-        visitedStates.insert(nodeState);
+        visitedStates[nodeState] = 0;
         
         Node* node = new Node(parent, nodeState);
         
         // count the child
         ++parent->_nChildNodes;
         
-		nodeQueue.push_front(node);
+        nodeQueue.push_front(node);
     }
     
     // no child nodes with parent references, free up memory
@@ -150,6 +151,14 @@ void AddToQueueIDFS(Node* parent, std::list<NodeState> descList)
     {
         for (NodeState nodeState : descList)
         {
+            int depth = parent->_depth + 1;
+
+            auto itr = visitedStates.find(nodeState);
+            if (itr != visitedStates.end() && depth >= itr->second)
+                continue;
+        
+            visitedStates[nodeState] = depth;
+        
             Node* node = new Node(parent, nodeState);
             
             // count the child
@@ -177,8 +186,10 @@ void AddToQueueIDFS(Node* parent, std::list<NodeState> descList)
     // increase depth, clear all previous data
     if (nodeQueue.empty())
     {
-        printf("IDFS: Moving to new depth: %d\n", IDFS_depth);
-        
+        DEBUG_LOG("IDFS: Moving to new depth: %d\n", IDFS_depth);
+
+        visitedStates.clear();
+
         ++IDFS_depth;
         FillFirstNode(); // mister bones' wild ride never ends
         
@@ -193,7 +204,7 @@ void AddToQueueGreedy(Node* parent, std::list<NodeState> descList)
         if (visitedStates.find(nodeState) != visitedStates.end())
             continue;
         
-        visitedStates.insert(nodeState);
+        visitedStates[nodeState] = 0;
         
         Node* node = new Node(parent, nodeState);
         
@@ -218,6 +229,14 @@ void AddToQueueAStar(Node* parent, std::list<NodeState> descList)
 {
 	for (NodeState nodeState : descList)
     {
+        int depth = parent->_depth + 1;
+
+        auto visitedItr = visitedStates.find(nodeState);
+        if (visitedItr != visitedStates.end() && depth >= visitedItr->second)
+            continue;
+        
+        visitedStates[nodeState] = depth; // we don't actually need the depth
+        
         Node* node = new Node(parent, nodeState);
         
         int cost = node->_cost;
